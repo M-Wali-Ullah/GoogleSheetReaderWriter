@@ -1,0 +1,86 @@
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+
+public class GoogleSheetReaderWriter {
+
+    public static void main(String[] args) throws IOException, InvalidFormatException {
+        // Import the necessary libraries
+        import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOfElementLocated;
+
+        // Initialize the WebDriver
+        WebDriver driver = new ChromeDriver();
+
+        // Get the Google Sheet
+        File spreadsheet = new File("https://docs.google.com/spreadsheets/d/1aOSwgkPGxnSFIk8Aspc1dve0vKebMdyZdaUyJ6pncIQ/edit?usp=drivesdk");
+        Workbook workbook = WorkbookFactory.create(spreadsheet);
+
+        // Get the current day of the week
+        String dayOfWeek = new java.util.Date().getDay() + "";
+
+        // Get the keywords from the Google Sheet
+        Sheet sheet = workbook.getSheet(dayOfWeek);
+        List<String> keywords = new ArrayList<>();
+        for (int i = 0; i < sheet.getLastRowNum() + 1; i++) {
+            keywords.add(sheet.getRow(i).getCell(2).getStringCellValue());
+        }
+
+        // Open Google
+        driver.get("https://google.com");
+
+        // For each keyword, fetch the recommendations and store them in an array
+        List<String[]> recommendations = new ArrayList<>();
+        for (String keyword : keywords) {
+            List<String> recommendationsForKeyword = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                driver.findElement(By.id("lst-ib")).sendKeys(keyword + "\n");
+                wait.until(visibilityOfElementLocated(By.id("res")));
+                recommendationsForKeyword.add(driver.findElement(By.id("res")).getText());
+            }
+            recommendations.add(recommendationsForKeyword.toArray(new String[0]));
+        }
+
+        // Sort the recommendations for each keyword
+        for (String[] recommendationsForKeyword : recommendations) {
+            int longestIndex = 0;
+            int shortestIndex = 0;
+            for (int i = 0; i < recommendationsForKeyword.length; i++) {
+                if (recommendationsForKeyword[i].length() > recommendationsForKeyword[longestIndex].length()) {
+                    longestIndex = i;
+                } else if (recommendationsForKeyword[i].length() < recommendationsForKeyword[shortestIndex].length()) {
+                    shortestIndex = i;
+                }
+            }
+            String[] temp = recommendationsForKeyword[longestIndex];
+            recommendationsForKeyword[longestIndex] = recommendationsForKeyword[shortestIndex];
+            recommendationsForKeyword[shortestIndex] = temp;
+        }
+
+        // Update the Google Sheet
+        for (int i = 0; i < recommendations.size(); i++) {
+            String keyword = keywords.get(i);
+            String longestRecommendation = recommendations.get(i)[longestIndex];
+            String shortestRecommendation = recommendations.get(i)[shortestIndex];
+            Row row = sheet.getRow(i);
+            Cell cell3 = row.getCell(3);
+            cell3.setCellValue(longestRecommendation);
+            Cell cell4 = row.getCell(4);
+            cell4.setCellValue(shortestRecommendation);
+            workbook.write(new FileWriter(spreadsheet));
+        }
+
+        // Close the WebDriver
+        driver.close();
